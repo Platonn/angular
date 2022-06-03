@@ -134,7 +134,7 @@
   callback was executed for the first time. Now it's tracked until
   the task is explicitly cancelled, e.g  with `clearInterval(id)`.
   
-  fixes 45350
+  fixes [#45350](https://github.com/angular/angular/pull/45350)
 ## Deprecations
 ### common
 - The `ngModuleFactory` input of the `NgComponentOutlet` directive is deprecated in favor of a newly added `ngModule` input. The `ngModule` input accepts references to the NgModule class directly, without the need to resolve module factory first.
