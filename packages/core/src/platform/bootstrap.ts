@@ -28,6 +28,7 @@ import {stringify} from '../util/stringify';
 
 export interface ModuleBootstrapConfig<M> {
   moduleRef: InternalNgModuleRef<M>;
+  platformInjector: Injector; // SPIKE ADDED - IMHO platform injector is needed to be passed. so we can set platform listeners
   allPlatformModules: NgModuleRef<unknown>[];
 }
 
@@ -40,7 +41,7 @@ export interface ApplicationBootstrapConfig {
 function isApplicationBootstrapConfig(
   config: ApplicationBootstrapConfig | ModuleBootstrapConfig<unknown>,
 ): config is ApplicationBootstrapConfig {
-  return !!(config as ApplicationBootstrapConfig).platformInjector;
+  return !!(config as ApplicationBootstrapConfig).r3Injector; // SPIKE CHANGED - IMHO application config should be recognized by presence of `r3Injector` or `rootComponent`
 }
 
 export function bootstrap<M>(
@@ -91,23 +92,34 @@ export function bootstrap<M>(
       });
     });
 
-    if (isApplicationBootstrapConfig(config)) {
-      // If the whole platform is destroyed, invoke the `destroy` method
-      // for all bootstrapped applications as well.
-      const destroyListener = () => envInjector.destroy();
-      const onPlatformDestroyListeners = config.platformInjector.get(PLATFORM_DESTROY_LISTENERS);
-      onPlatformDestroyListeners.add(destroyListener);
+    // SPIKE COMMENTED OUT - if statement - IMHO it's not needed. IMHO we should always destroy envInjector, when platformInjector is destroyed.But I might be missing something:
+    // if (isApplicationBootstrapConfig(config)) {
 
-      envInjector.onDestroy(() => {
-        onErrorSubscription.unsubscribe();
-        onPlatformDestroyListeners.delete(destroyListener);
-      });
-    } else {
+    // If the whole platform is destroyed, invoke the `destroy` method
+    // for all bootstrapped applications as well.
+    const destroyListener = () => envInjector.destroy();
+    const onPlatformDestroyListeners = config.platformInjector.get(PLATFORM_DESTROY_LISTENERS);
+    onPlatformDestroyListeners.add(destroyListener);
+
+    envInjector.onDestroy(() => {
+      onErrorSubscription.unsubscribe();
+      onPlatformDestroyListeners.delete(destroyListener);
+    });
+
+    // SPIKE ADDED - IMHO leave this logic to be backward compatible:
+    if (!isApplicationBootstrapConfig(config)) {
       config.moduleRef.onDestroy(() => {
         remove(config.allPlatformModules, config.moduleRef);
-        onErrorSubscription.unsubscribe();
       });
     }
+
+    // SPIKE COMMENTED OUT - IMHO it's not needed. But I might be missing something:
+    // } else {
+    //   config.moduleRef.onDestroy(() => {
+    //     remove(config.allPlatformModules, config.moduleRef);
+    //     onErrorSubscription.unsubscribe();
+    //   });
+    // }
 
     return _callAndReportToErrorHandler(exceptionHandler!, ngZone, () => {
       const initStatus = envInjector.get(ApplicationInitStatus);
