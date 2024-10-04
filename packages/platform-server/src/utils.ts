@@ -194,18 +194,20 @@ async function _render(platformRef: PlatformRef, applicationRef: ApplicationRef)
   }
 
   appendServerContextInfo(applicationRef);
-  const output = platformState.renderToString();
+  return platformState.renderToString();
+}
 
-  // Destroy the application in a macrotask, this allows pending promises to be settled and errors
-  // to be surfaced to the users.
+/**
+ * Destroy the application in a macrotask, this allows pending promises to be settled and errors
+ * to be surfaced to the users.
+ */
+async function asyncDestroyPlatform(platformRef: PlatformRef): Promise<void> {
   await new Promise<void>((resolve) => {
     setTimeout(() => {
       platformRef.destroy();
       resolve();
     }, 0);
   });
-
-  return output;
 }
 
 /**
@@ -248,9 +250,13 @@ export async function renderModule<T>(
 ): Promise<string> {
   const {document, url, extraProviders: platformProviders} = options;
   const platformRef = createServerPlatform({document, url, platformProviders});
-  const moduleRef = await platformRef.bootstrapModule(moduleType);
-  const applicationRef = moduleRef.injector.get(ApplicationRef);
-  return _render(platformRef, applicationRef);
+  try {
+    const moduleRef = await platformRef.bootstrapModule(moduleType);
+    const applicationRef = moduleRef.injector.get(ApplicationRef);
+    return await _render(platformRef, applicationRef);
+  } finally {
+    await asyncDestroyPlatform(platformRef);
+  }
 }
 
 /**
@@ -279,8 +285,11 @@ export async function renderApplication<T>(
 ): Promise<string> {
   return runAndMeasurePerf('renderApplication', async () => {
     const platformRef = createServerPlatform(options);
-
-    const applicationRef = await bootstrap();
-    return _render(platformRef, applicationRef);
+    try {
+      const applicationRef = await bootstrap();
+      return await _render(platformRef, applicationRef);
+    } finally {
+      await asyncDestroyPlatform(platformRef);
+    }
   });
 }
